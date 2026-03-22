@@ -47,8 +47,50 @@
         gap: 1rem;
       }
 
+      .header h1 {
+        font-size: 1.25rem;
+        margin: 0;
+      }
+
       .status {
         font-size: 0.9rem;
+      }
+
+      .toolbar {
+        border-bottom: 2px solid var(--ink);
+        padding: 0.65rem 0.9rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.75rem;
+        background: linear-gradient(180deg, #f6f4ed 0%, #fefdf9 100%);
+      }
+
+      .tool-button {
+        border: 2px solid var(--ink);
+        background: #fff;
+        color: var(--ink);
+        border-radius: 10px;
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.35rem 0.7rem;
+        cursor: pointer;
+      }
+
+      .tool-button.active {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .control-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.84rem;
+      }
+
+      #sizePicker {
+        width: 140px;
       }
 
       #board {
@@ -67,6 +109,26 @@
         <h1>Distributed Drawing Board</h1>
         <div class="status" id="status">Connecting...</div>
       </div>
+
+      <div class="toolbar">
+        <button class="tool-button active" data-tool="pen">Pen</button>
+        <button class="tool-button" data-tool="line">Line</button>
+        <button class="tool-button" data-tool="rect">Rectangle</button>
+        <button class="tool-button" data-tool="circle">Circle</button>
+        <button class="tool-button" data-tool="eraser">Eraser</button>
+
+        <label class="control-group" for="colorPicker">
+          Color
+          <input id="colorPicker" type="color" value="#161616" />
+        </label>
+
+        <label class="control-group" for="sizePicker">
+          Size
+          <input id="sizePicker" type="range" min="1" max="40" value="3" />
+          <span id="sizeValue">3</span>
+        </label>
+      </div>
+
       <canvas id="board"></canvas>
     </main>
 
@@ -74,7 +136,39 @@
       const statusEl = document.getElementById("status");
       const canvas = document.getElementById("board");
       const ctx = canvas.getContext("2d");
+      const colorPicker = document.getElementById("colorPicker");
+      const sizePicker = document.getElementById("sizePicker");
+      const sizeValue = document.getElementById("sizeValue");
+      const toolButtons = Array.from(document.querySelectorAll(".tool-button"));
       const pending = new Map();
+
+      let selectedTool = "pen";
+      let selectedColor = "#161616";
+      let selectedWidth = 3;
+
+      function setTool(nextTool) {
+        selectedTool = nextTool;
+        for (const button of toolButtons) {
+          button.classList.toggle("active", button.dataset.tool === nextTool);
+        }
+      }
+
+      for (const button of toolButtons) {
+        button.addEventListener("click", () => setTool(button.dataset.tool));
+      }
+
+      colorPicker.addEventListener("input", () => {
+        selectedColor = colorPicker.value;
+      });
+
+      sizePicker.addEventListener("input", () => {
+        selectedWidth = Number(sizePicker.value);
+        sizeValue.textContent = String(selectedWidth);
+      });
+
+      function toolOf(stroke) {
+        return stroke.tool || "pen";
+      }
 
       function resizeCanvas() {
         const ratio = window.devicePixelRatio || 1;
@@ -85,23 +179,80 @@
         ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       }
 
-      function drawStroke(stroke, colorOverride) {
-        if (!stroke.points || stroke.points.length < 2) return;
+      function drawStroke(stroke, options = {}) {
+        if (!stroke.points || stroke.points.length < 1) return;
+        const tool = toolOf(stroke);
+        const points = stroke.points;
+        const preview = options.preview === true;
+
+        ctx.save();
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
-        ctx.strokeStyle = colorOverride || stroke.color;
-        ctx.lineWidth = stroke.width;
-        ctx.beginPath();
-        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-        for (let i = 1; i < stroke.points.length; i++) {
-          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+
+        if (tool === "eraser" && !preview) {
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.strokeStyle = "rgba(0,0,0,1)";
+        } else {
+          ctx.globalCompositeOperation = "source-over";
+          ctx.strokeStyle = options.colorOverride || stroke.color || "#161616";
         }
-        ctx.stroke();
+
+        ctx.lineWidth = stroke.width || 3;
+
+        if (tool === "pen" || tool === "eraser") {
+          if (points.length < 2) {
+            ctx.restore();
+            return;
+          }
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+          }
+          ctx.stroke();
+          ctx.restore();
+          return;
+        }
+
+        if (points.length < 2) {
+          ctx.restore();
+          return;
+        }
+
+        const start = points[0];
+        const end = points[1];
+
+        if (tool === "line") {
+          ctx.beginPath();
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.stroke();
+          ctx.restore();
+          return;
+        }
+
+        if (tool === "rect") {
+          const x = Math.min(start.x, end.x);
+          const y = Math.min(start.y, end.y);
+          const w = Math.abs(end.x - start.x);
+          const h = Math.abs(end.y - start.y);
+          ctx.strokeRect(x, y, w, h);
+          ctx.restore();
+          return;
+        }
+
+        if (tool === "circle") {
+          const radius = Math.hypot(end.x - start.x, end.y - start.y);
+          ctx.beginPath();
+          ctx.arc(start.x, start.y, radius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       function renderPendingOverlay() {
         for (const stroke of pending.values()) {
-          drawStroke(stroke, "#ef4444aa");
+          drawStroke(stroke, { colorOverride: "#ef4444aa", preview: true });
         }
       }
 
@@ -171,22 +322,47 @@
 
       canvas.addEventListener("pointerdown", (e) => {
         canvas.setPointerCapture(e.pointerId);
+        const start = pointFromEvent(e);
         currentStroke = {
-          points: [pointFromEvent(e)],
-          color: "#161616",
-          width: 3,
+          points: [start],
+          color: selectedColor,
+          width: selectedWidth,
+          tool: selectedTool,
         };
       });
 
       canvas.addEventListener("pointermove", (e) => {
         if (!currentStroke) return;
-        currentStroke.points.push(pointFromEvent(e));
+        const nextPoint = pointFromEvent(e);
+        const tool = toolOf(currentStroke);
+
+        if (tool === "pen" || tool === "eraser") {
+          currentStroke.points.push(nextPoint);
+        } else if (currentStroke.points.length === 1) {
+          currentStroke.points.push(nextPoint);
+        } else {
+          currentStroke.points[1] = nextPoint;
+        }
+
         redrawBase(committed);
-        drawStroke(currentStroke, "#161616cc");
+        drawStroke(currentStroke, {
+          colorOverride: tool === "eraser" ? "#55555588" : `${currentStroke.color}cc`,
+          preview: true,
+        });
       });
 
-      canvas.addEventListener("pointerup", () => {
-        if (!currentStroke || currentStroke.points.length < 2) {
+      function finishStroke() {
+        if (!currentStroke) {
+          return;
+        }
+
+        const tool = toolOf(currentStroke);
+        if ((tool === "pen" || tool === "eraser") && currentStroke.points.length < 2) {
+          currentStroke = null;
+          return;
+        }
+
+        if ((tool === "line" || tool === "rect" || tool === "circle") && currentStroke.points.length < 2) {
           currentStroke = null;
           return;
         }
@@ -206,6 +382,12 @@
         }
 
         currentStroke = null;
+      }
+
+      canvas.addEventListener("pointerup", finishStroke);
+      canvas.addEventListener("pointercancel", () => {
+        currentStroke = null;
+        redrawBase(committed);
       });
 
       window.addEventListener("resize", () => {
