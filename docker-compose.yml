@@ -1,0 +1,73 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      GATEWAY_PORT: "3000"
+      REPLICA_MAP: "replica1=http://replica1:4001,replica2=http://replica2:4002,replica3=http://replica3:4003"
+    depends_on:
+      - replica1
+      - replica2
+      - replica3
+    networks:
+      - raft-net
+
+  replica1:
+    build:
+      context: .
+      dockerfile: services/replica/Dockerfile
+    environment:
+      REPLICA_ID: "replica1"
+      PORT: "4001"
+      PEERS: "replica2=http://replica2:4002,replica3=http://replica3:4003"
+      GATEWAY_URL: "http://gateway:3000"
+    ports:
+      - "4001:4001"
+    networks:
+      - raft-net
+
+  replica2:
+    build:
+      context: .
+      dockerfile: services/replica/Dockerfile
+    environment:
+      REPLICA_ID: "replica2"
+      PORT: "4002"
+      PEERS: "replica1=http://replica1:4001,replica3=http://replica3:4003"
+      GATEWAY_URL: "http://gateway:3000"
+    ports:
+      - "4002:4002"
+    networks:
+      - raft-net
+
+  replica3:
+    build:
+      context: .
+      dockerfile: services/replica/Dockerfile
+    environment:
+      REPLICA_ID: "replica3"
+      PORT: "4003"
+      PEERS: "replica1=http://replica1:4001,replica2=http://replica2:4002"
+      GATEWAY_URL: "http://gateway:3000"
+    ports:
+      - "4003:4003"
+    networks:
+      - raft-net
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./apps/frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - gateway
+    networks:
+      - raft-net
+
+networks:
+  raft-net:
+    driver: bridge

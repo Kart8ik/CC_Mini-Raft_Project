@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mini-RAFT Drawing Board</title>
+    <style>
+      :root {
+        --bg: #f4f2ea;
+        --panel: #fefdf9;
+        --ink: #161616;
+        --accent: #0f766e;
+        --pending: #ef4444;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, #f9efe1 0%, var(--bg) 45%, #e7f0ee 100%);
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+
+      .shell {
+        width: min(1100px, 96vw);
+        background: var(--panel);
+        border: 2px solid var(--ink);
+        border-radius: 18px;
+        box-shadow: 10px 12px 0 #d5d0c2;
+        overflow: hidden;
+      }
+
+      .header {
+        padding: 0.9rem 1.1rem;
+        border-bottom: 2px solid var(--ink);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .status {
+        font-size: 0.9rem;
+      }
+
+      #board {
+        width: 100%;
+        height: min(74vh, 680px);
+        display: block;
+        background: linear-gradient(180deg, #fffdfa 0%, #fffaf2 100%);
+        touch-action: none;
+        cursor: crosshair;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="header">
+        <h1>Distributed Drawing Board</h1>
+        <div class="status" id="status">Connecting...</div>
+      </div>
+      <canvas id="board"></canvas>
+    </main>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const canvas = document.getElementById("board");
+      const ctx = canvas.getContext("2d");
+      const pending = new Map();
+
+      function resizeCanvas() {
+        const ratio = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        canvas.width = Math.floor(width * ratio);
+        canvas.height = Math.floor(height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+
+      function drawStroke(stroke, colorOverride) {
+        if (!stroke.points || stroke.points.length < 2) return;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = colorOverride || stroke.color;
+        ctx.lineWidth = stroke.width;
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
+      }
+
+      function renderPendingOverlay() {
+        for (const stroke of pending.values()) {
+          drawStroke(stroke, "#ef4444aa");
+        }
+      }
+
+      function redrawBase(baseEntries) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const entry of baseEntries) {
+          drawStroke(entry.stroke);
+        }
+        renderPendingOverlay();
+      }
+
+      let committed = [];
+      let currentStroke = null;
+      let ws = null;
+
+      function wsUrl() {
+        const isSecure = location.protocol === "https:";
+        const proto = isSecure ? "wss" : "ws";
+        return `${proto}://${location.hostname}:3000/ws`;
+      }
+
+      function connect() {
+        ws = new WebSocket(wsUrl());
+
+        ws.addEventListener("open", () => {
+          statusEl.textContent = "Connected";
+        });
+
+        ws.addEventListener("close", () => {
+          statusEl.textContent = "Reconnecting...";
+          setTimeout(connect, 900);
+        });
+
+        ws.addEventListener("message", (event) => {
+          const message = JSON.parse(event.data);
+
+          if (message.type === "init") {
+            committed = message.entries;
+            redrawBase(committed);
+            return;
+          }
+
+          if (message.type === "committed") {
+            committed.push({
+              index: message.logIndex,
+              term: 0,
+              stroke: message.stroke,
+            });
+            for (const [localId, stroke] of pending.entries()) {
+              if (JSON.stringify(stroke) === JSON.stringify(message.stroke)) {
+                pending.delete(localId);
+                break;
+              }
+            }
+            redrawBase(committed);
+          }
+        });
+      }
+
+      function pointFromEvent(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+        };
+      }
+
+      canvas.addEventListener("pointerdown", (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        currentStroke = {
+          points: [pointFromEvent(e)],
+          color: "#161616",
+          width: 3,
+        };
+      });
+
+      canvas.addEventListener("pointermove", (e) => {
+        if (!currentStroke) return;
+        currentStroke.points.push(pointFromEvent(e));
+        redrawBase(committed);
+        drawStroke(currentStroke, "#161616cc");
+      });
+
+      canvas.addEventListener("pointerup", () => {
+        if (!currentStroke || currentStroke.points.length < 2) {
+          currentStroke = null;
+          return;
+        }
+
+        const localId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        pending.set(localId, currentStroke);
+        redrawBase(committed);
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "stroke",
+              stroke: currentStroke,
+              localId,
+            }),
+          );
+        }
+
+        currentStroke = null;
+      });
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        redrawBase(committed);
+      });
+
+      resizeCanvas();
+      connect();
+    </script>
+  </body>
+</html>
