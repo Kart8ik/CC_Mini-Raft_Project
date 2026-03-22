@@ -5,10 +5,13 @@ export interface Point {
   y: number;
 }
 
+export type DrawingTool = "pen" | "line" | "rect" | "circle" | "eraser";
+
 export interface Stroke {
   points: Point[];
   color: string;
   width: number;
+  tool?: DrawingTool;
 }
 
 export interface LogEntry {
