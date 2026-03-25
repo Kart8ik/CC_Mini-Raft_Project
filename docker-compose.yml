@@ -69,17 +69,6 @@ services:
     networks:
       - raft-net
 
-  frontend:
-    image: nginx:alpine
-    ports:
-      - "8080:80"
-    volumes:
-      - ./apps/frontend:/usr/share/nginx/html:ro
-    depends_on:
-      - gateway
-    networks:
-      - raft-net
-
   dashboard:
     build:
       context: .
@@ -88,7 +77,7 @@ services:
       - "3001:3001"
     environment:
       DASHBOARD_PORT: "3001"
-      REPLICA_URLS: "http://replica1:4001,http://replica2:4002,http://replica3:4003"
+      REPLICA_URLS: "http://gateway:3000,http://replica1:4001,http://replica2:4002,http://replica3:4003"
     depends_on:
       - replica1
       - replica2

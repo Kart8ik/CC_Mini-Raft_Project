@@ -124,7 +124,20 @@ Net effect:
 
 ## 4) Detailed Gaps and Missing Items
 
-### 4.1 Gateway Failover Behavior Still Simplified
+### 4.1 2-Node Cluster Replication Timeout & State Desync
+
+**Observed:**
+- When 1 node dies in a 3-node cluster, the system becomes a 2-node cluster (maintaining a 2/3 quorum).
+- The leader's `replicateEntry` function blocks on a `700ms` `axios` timeout when attempting to send `AppendEntries` to the dead node.
+- This `700ms` penalty pushes the leader's stroke response time dangerously close to the Gateway's `800ms` forwarding timeout. The Gateway frequently drops the connection and fails to gracefully fallback or inform the frontend client. Commits are logged by the replica but drop at the gateway layer.
+- Followers only receive the leader's newly updated `commitIndex` when the *next* stroke is transmitted via `AppendEntries` (heartbeats do not carry `leaderCommit`). Thus, replicas appear one commit behind the leader.
+- If the remaining nodes die and are replaced, or the leader shuts down, the follower with the lagging `commitIndex` wins the election and overwrites uncommitted logs, permanently breaking the system.
+
+**Impact:**
+- Commits appear successful on the replica but inconsistently reach the frontend.
+- Single-node failures eventually destabilize the consensus graph and break follower recovery.
+
+### 4.2 Gateway Failover Behavior Still Simplified
 
 **Observed:**
 - Gateway relies primarily on explicit `/leader-change` updates.
@@ -133,7 +146,7 @@ Net effect:
 **Impact:**
 - Temporary forwarding failures can occur during leader transitions.
 
-### 4.2 In-Memory Durability Gap
+### 4.3 In-Memory Durability Gap
 
 **Observed:**
 - Gateway committed state and replica logs are in-memory.
@@ -141,7 +154,7 @@ Net effect:
 **Impact:**
 - Restart scenarios can lose state and weaken fault-tolerance claims.
 
-### 4.3 Commit-Safety Hardening Still Limited
+### 4.4 Commit-Safety Hardening Still Limited
 
 **Observed:**
 - Core conflict handling exists, but committed-prefix invariants are not strongly guarded with explicit safety checks/tests.
@@ -149,7 +162,7 @@ Net effect:
 **Impact:**
 - Edge-case confidence remains limited.
 
-### 4.4 Observability Improved But Still Basic
+### 4.5 Observability Improved But Still Basic
 
 **Observed:**
 - Structured logs, status endpoint, and live dashboard are implemented.
@@ -158,7 +171,7 @@ Net effect:
 - Debugging and demos are much better.
 - Still missing persistent log storage, metrics, alerting, and historical analysis.
 
-### 4.5 Hot-Reload Workflow Requirement Gap
+### 4.6 Hot-Reload Workflow Requirement Gap
 
 **Observed:**
 - Dev execution uses `tsx`, but compose lacks bind-mounted hot-reload path expected by FR-D02 narrative.
@@ -166,7 +179,7 @@ Net effect:
 **Impact:**
 - Workflow does not fully align with SRS/SAD hot-reload expectations.
 
-### 4.6 NFR Validation Still Pending
+### 4.7 NFR Validation Still Pending
 
 **Observed:**
 - No embedded automated benchmarks for latency/recovery targets.
@@ -174,7 +187,7 @@ Net effect:
 **Impact:**
 - NFR claims remain unproven.
 
-### 4.7 Shared Contract Coverage Gap for Command Tools
+### 4.8 Shared Contract Coverage Gap for Command Tools
 
 **Observed:**
 - Runtime uses command tools (`undo`/`redo`/`clear`) in stroke payload behavior.

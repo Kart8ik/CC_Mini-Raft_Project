@@ -41,20 +41,77 @@ function broadcast(payload: WsServerEvent): void {
   }
 }
 
-async function forwardStroke(message: StrokeIngressRequest): Promise<void> {
-  if (!currentLeaderId || !replicaMap[currentLeaderId]) {
-    logger.log("NODE_UNREACHABLE", "Leader unknown - awaiting failover");
-    throw new Error("No leader known by gateway");
+async function forwardStroke(ws: WebSocket, localId: string, message: StrokeIngressRequest): Promise<void> {
+  let attemptLeaderId = currentLeaderId;
+
+  const tryPost = async (leaderId: string) => {
+    const leaderUrl = replicaMap[leaderId];
+    return axios.post(`${leaderUrl}/stroke`, message, { timeout: 800 });
+  };
+
+  const doProbeStr = async () => {
+    const probePromises = Object.entries(replicaMap).map(async ([id, url]) => {
+      try {
+        const res = await axios.get(`${url}/status`, { timeout: 500 });
+        if (res.data?.state === "leader") {
+          return id;
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    });
+    const results = await Promise.all(probePromises);
+    return results.find((id) => id !== null) || null;
+  };
+
+  if (!attemptLeaderId || !replicaMap[attemptLeaderId]) {
+    attemptLeaderId = await doProbeStr();
   }
 
-  const leaderUrl = replicaMap[currentLeaderId];
-  try {
-    await axios.post(`${leaderUrl}/stroke`, message, { timeout: 800 });
-    logger.log("STROKE_FORWARDED", `Stroke forwarded to ${currentLeaderId}`);
-  } catch (error) {
-    logger.log("NODE_UNREACHABLE", `Leader ${currentLeaderId} unreachable - awaiting failover`);
-    throw error;
+  if (attemptLeaderId && replicaMap[attemptLeaderId]) {
+    try {
+      await tryPost(attemptLeaderId);
+      logger.log("STROKE_FORWARDED", `Stroke forwarded to ${attemptLeaderId}`);
+      currentLeaderId = attemptLeaderId;
+      return;
+    } catch (error: any) {
+      const hint = error.response?.data?.leaderHint;
+      if (hint && replicaMap[hint]) {
+        logger.log("NODE_UNREACHABLE", `Leader hint received -> ${hint}`);
+        try {
+          await tryPost(hint);
+          logger.log("STROKE_FORWARDED", `Stroke forwarded to ${hint} (via hint)`);
+          currentLeaderId = hint;
+          return;
+        } catch (hintError) {
+          // hint failed, fall through to probe
+        }
+      }
+
+      logger.log("NODE_UNREACHABLE", `Leader ${attemptLeaderId} unreachable - probing network`);
+      const probedLeader = await doProbeStr();
+      if (probedLeader) {
+        logger.log("LEADER_CHANGE", `Leader discovered via probe -> ${probedLeader}`);
+        currentLeaderId = probedLeader;
+        try {
+          await tryPost(probedLeader);
+          logger.log("STROKE_FORWARDED", `Stroke forwarded to ${probedLeader} (via probe)`);
+          return;
+        } catch (e) {
+          // probe failed, fall to re-queue
+        }
+      }
+    }
   }
+
+  logger.log("NODE_UNREACHABLE", "No leader found - queuing for retry in 500ms");
+  sendJson(ws, { type: "pending", localId });
+  setTimeout(() => {
+    forwardStroke(ws, localId, message).catch(() => {
+      logger.log("NODE_UNREACHABLE", "Leader unreachable after queued retry");
+    });
+  }, 500);
 }
 
 wss.on("connection", (ws) => {
@@ -74,7 +131,7 @@ wss.on("connection", (ws) => {
       }
 
       sendJson(ws, { type: "pending", localId: event.localId });
-      await forwardStroke({
+      await forwardStroke(ws, event.localId, {
         clientId: event.localId,
         stroke: event.stroke,
       });
@@ -100,6 +157,20 @@ app.get("/health", (_req, res) => {
 
 app.get("/state", (_req, res) => {
   res.json({ currentLeaderId, replicaMap });
+});
+
+app.get("/status", (_req, res) => {
+  res.json({
+    replicaId: "gateway",
+    state: "gateway",
+    currentTerm: 0,
+    votedFor: null,
+    logLength: committedEntries.length,
+    commitIndex: committedEntries.length,
+    leaderId: currentLeaderId,
+    msSinceLastHeartbeat: 0,
+    recentEvents: logger.getRecentEvents(50),
+  });
 });
 
 app.post("/leader-change", (req, res) => {

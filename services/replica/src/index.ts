@@ -54,11 +54,10 @@ app.post("/sync-log", (req, res) => {
 app.post("/stroke", async (req, res) => {
   const body = req.body as StrokeIngressRequest;
   if (!node.isLeader()) {
+    const hint = node.getLeaderHint();
     return res.status(409).json({
-      accepted: false,
-      committed: false,
-      leaderHint: node.getLeaderHint(),
-      logIndex: undefined,
+      success: false,
+      leaderHint: hint === "unknown" ? null : hint,
     });
   }
 
