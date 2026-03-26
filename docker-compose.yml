@@ -14,11 +14,14 @@ services:
       - replica3
     networks:
       - raft-net
+    volumes:
+      - ./:/app
+      - /app/node_modules
 
   replica1:
     build:
       context: .
-      dockerfile: services/replica/Dockerfile
+      dockerfile: services/replica1/Dockerfile
     environment:
       REPLICA_ID: "replica1"
       PORT: "4001"
@@ -32,11 +35,14 @@ services:
       - "4001:4001"
     networks:
       - raft-net
+    volumes:
+      - ./:/app
+      - /app/node_modules
 
   replica2:
     build:
       context: .
-      dockerfile: services/replica/Dockerfile
+      dockerfile: services/replica2/Dockerfile
     environment:
       REPLICA_ID: "replica2"
       PORT: "4002"
@@ -50,11 +56,14 @@ services:
       - "4002:4002"
     networks:
       - raft-net
+    volumes:
+      - ./:/app
+      - /app/node_modules
 
   replica3:
     build:
       context: .
-      dockerfile: services/replica/Dockerfile
+      dockerfile: services/replica3/Dockerfile
     environment:
       REPLICA_ID: "replica3"
       PORT: "4003"
@@ -68,6 +77,9 @@ services:
       - "4003:4003"
     networks:
       - raft-net
+    volumes:
+      - ./:/app
+      - /app/node_modules
 
   dashboard:
     build:
@@ -84,6 +96,9 @@ services:
       - replica3
     networks:
       - raft-net
+    volumes:
+      - ./:/app
+      - /app/node_modules
 
 networks:
   raft-net:

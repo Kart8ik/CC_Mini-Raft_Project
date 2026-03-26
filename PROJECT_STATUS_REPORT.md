@@ -28,6 +28,9 @@ All critical failover issues identified in the previous report have been resolve
 - **Smart probe skip:** The gateway excludes the just-failed leader from status probes, cutting probe latency from ~500ms to ~5ms.
 - **In-flight stroke dedup:** A `pendingStrokes` set prevents the gateway from processing duplicate retries of the same stroke.
 - **Leader hint fallback:** Non-leader replicas return a `leaderHint` in their 409 response, enabling instant gateway rerouting.
+- **Nodemon hot reload completed:** Gateway, replicas, and dashboard now run watch-mode dev scripts with automatic restart on TypeScript changes.
+- **Compose volume fix completed:** Services now bind-mount the monorepo root with isolated `/app/node_modules` to support stable Docker-based hot reload.
+- **Per-replica workspace split completed:** Replica service was split into `services/replica1`, `services/replica2`, `services/replica3` with unique workspace package names to avoid npm duplicate-workspace conflicts.
 
 ---
 
@@ -37,6 +40,7 @@ All critical failover issues identified in the previous report have been resolve
 
 ✅ Implemented
 - Monorepo with shared package + gateway + replica services + dashboard service
+- Three independent replica workspaces (`@mini-raft/replica1`, `@mini-raft/replica2`, `@mini-raft/replica3`) for isolated hot-reload behavior
 - 1 gateway + 3 replicas + 1 frontend + 1 dashboard topology
 - Docker Compose orchestration on shared network
 
@@ -125,7 +129,7 @@ All critical failover issues identified in the previous report have been resolve
 
 ### 4.3 Hot-Reload Workflow Requirement Gap
 
-- Compose lacks bind-mounted hot-reload path expected by FR-D02 narrative.
+- ✅ Resolved. Docker Compose and workspace scripts now support hot reload via nodemon across gateway, replicas, dashboard, and shared package edits.
 
 ---
 
@@ -135,7 +139,7 @@ All critical failover issues identified in the previous report have been resolve
 |---|---|---|---|
 | Data loss on full restart | High | Medium | In-memory-only resilience limit |
 | Unverified latency/recovery targets | Medium | Medium | Readiness claims remain weak |
-| Requirement mismatch for hot reload | Medium | High | Impacts grading/compliance |
+| Hot reload instability on some Docker hosts | Low | Low | May require polling watcher flags on certain host FS setups |
 
 ---
 
@@ -147,6 +151,7 @@ All critical failover issues identified in the previous report have been resolve
 - **Single-node failover working:** Yes
 - **Live observability dashboard available:** Yes
 - **Strokes appear correctly during node failure:** Yes
-- **Fully compliant with attached SAD/SRS:** Partial (in-memory durability, hot-reload gap)
+- **Hot reload via nodemon in Docker Compose:** Yes
+- **Fully compliant with attached SAD/SRS:** Partial (in-memory durability + pending NFR benchmark validation)
 
 The project is in a strong functional state with all core distributed consensus, replication, and failover mechanisms working correctly under single-node failure scenarios.

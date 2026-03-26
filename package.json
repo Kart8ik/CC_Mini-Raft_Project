@@ -9,7 +9,9 @@
   ],
   "scripts": {
     "dev:gateway": "npm run dev -w @mini-raft/gateway",
-    "dev:replica": "npm run dev -w @mini-raft/replica",
+    "dev:replica1": "npm run dev -w @mini-raft/replica1",
+    "dev:replica2": "npm run dev -w @mini-raft/replica2",
+    "dev:replica3": "npm run dev -w @mini-raft/replica3",
     "dev:dashboard": "npm run dev -w @mini-raft/dashboard",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces"

@@ -93,7 +93,7 @@ flowchart TD
 
 ### Replicas (Mini-RAFT)
 
-- Location: `services/replica/src/raftNode.ts`
+- Location: `services/replica1/src/raftNode.ts`, `services/replica2/src/raftNode.ts`, `services/replica3/src/raftNode.ts`
 - Each replica can be in one of:
   - follower,
   - candidate,
@@ -149,7 +149,17 @@ flowchart TD
 ├── services/
 │   ├── gateway/
 │   │   └── src/index.ts
-│   └── replica/
+│   ├── replica1/
+│   │   └── src/
+│   │       ├── config.ts
+│   │       ├── index.ts
+│   │       └── raftNode.ts
+│   ├── replica2/
+│   │   └── src/
+│   │       ├── config.ts
+│   │       ├── index.ts
+│   │       └── raftNode.ts
+│   └── replica3/
 │       └── src/
 │           ├── config.ts
 │           ├── index.ts
@@ -180,6 +190,8 @@ flowchart TD
    ```bash
    docker compose up --build
    ```
+
+  After startup, gateway/replicas/dashboard run in watch mode with `nodemon`, so TypeScript changes under `services/*/src`, `dashboard/src`, and `packages/shared/src` trigger automatic restarts.
 
 3. Open the drawing app:
 
@@ -322,7 +334,37 @@ docker compose down
 
 ---
 
-## 10) Development notes
+## 10) Hot reload (Nodemon)
+
+Hot reload is enabled for gateway, replicas, and dashboard in Docker Compose.
+
+### What this adds
+
+- Faster iteration: save code and service restarts automatically.
+- No manual container restart for normal backend/dashboard TypeScript edits.
+- Shared package edits (`packages/shared/src`) also trigger restarts in dependent services.
+
+### What you can do now
+
+- Edit RAFT logic in any one replica (`services/replica1/src/raftNode.ts`, `services/replica2/src/raftNode.ts`, or `services/replica3/src/raftNode.ts`) and observe only that replica restarting.
+- Edit gateway routing/failover logic in `services/gateway/src/index.ts` and retest without rebuilding.
+- Edit dashboard API/server code in `dashboard/src/index.ts` and refresh the browser.
+- Edit shared contracts/logger in `packages/shared/src/*` and watch all dependent services restart with new shared code.
+
+### Quick live demo (for presentation)
+
+1. Start the stack:
+  ```bash
+  docker compose up --build
+  ```
+2. Keep logs visible in the same terminal.
+3. Open `http://localhost:3001/board.html` and `http://localhost:3001`.
+4. In `services/replica2/src/index.ts`, change a startup log message string and save.
+5. Show terminal output: nodemon detects file change and restarts the replica automatically.
+6. Confirm only `replica2` restarts, while `replica1` and `replica3` remain up.
+7. Draw a stroke again to prove the system stays live after auto-restart.
+
+## 11) Development notes
 
 - This is a Mini-RAFT educational implementation, intentionally simplified.
 - State is primarily in-memory; behavior across full restarts depends on current running cluster state.
