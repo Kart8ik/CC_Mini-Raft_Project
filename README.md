@@ -72,9 +72,9 @@ flowchart TD
 
 ### Frontend
 
-- Location: `apps/frontend/index.html`
+- Location: `dashboard/public/board.html`
 - Provides a canvas and pointer-based drawing.
-- Opens a WebSocket connection to the gateway (`/ws`).
+- Opens a WebSocket connection to the gateway (`/ws` on port `3000`).
 - Displays:
   - committed strokes (cluster-approved),
   - pending strokes (optimistic local overlay).
@@ -111,6 +111,8 @@ flowchart TD
 
 - Location: `dashboard/src/index.ts` + `dashboard/public/index.html`
 - Responsibilities:
+  - serve the drawing board frontend (`board.html`),
+  - serve the dashboard UI (`index.html`),
   - poll replicas for `GET /status` via `GET /api/status`,
   - stream deduplicated recent events via `GET /api/events` (SSE),
   - render leader/follower/candidate/unreachable states and lag indicators.
@@ -133,9 +135,6 @@ flowchart TD
 
 ```text
 .
-├── apps/
-│   └── frontend/
-│       └── index.html
 ├── packages/
 │   └── shared/
 │       └── src/
@@ -145,7 +144,8 @@ flowchart TD
 │   ├── src/
 │   │   └── index.ts
 │   └── public/
-│       └── index.html
+│       ├── index.html
+│       └── board.html
 ├── services/
 │   ├── gateway/
 │   │   └── src/index.ts
@@ -183,7 +183,7 @@ flowchart TD
 
 3. Open the drawing app:
 
-  - Frontend UI: http://localhost:8080
+  - Frontend UI: http://localhost:3001/board.html
   - Dashboard UI: http://localhost:3001
 
 4. Open the service health endpoints (optional):
@@ -200,7 +200,7 @@ flowchart TD
 
 5. Validate replication quickly:
 
-   - Open two browser tabs at `http://localhost:8080`.
+   - Open two browser tabs at `http://localhost:3001/board.html`.
    - Draw in one tab.
    - Confirm committed strokes appear in both tabs.
 
@@ -250,9 +250,8 @@ docker compose down
 
 ## Ports
 
-- Frontend (nginx): `8080`
 - Gateway: `3000`
-- Dashboard: `3001`
+- Dashboard & Frontend: `3001`
 - Replica1: `4001`
 - Replica2: `4002`
 - Replica3: `4003`
@@ -297,7 +296,7 @@ docker compose down
 
 - Services fail to start:
   - run `docker compose down` then `docker compose up --build` again,
-  - ensure no local process is already using ports 3000/3001/4001/4002/4003/8080.
+  - ensure no local process is already using ports 3000/3001/4001/4002/4003.
 
 ---
 
@@ -307,7 +306,7 @@ docker compose down
    ```bash
    docker compose up -d --build
    ```
-2. Open the frontend at `http://localhost:8080` and draw a few strokes to confirm the system is working.
+2. Open the frontend at `http://localhost:3001/board.html` and draw a few strokes to confirm the system is working.
 3. Kill a specific replica (e.g., the current leader):
    ```bash
    docker stop cc_mini-raft_project-replica1-1
