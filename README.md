@@ -407,3 +407,153 @@ Hot reload is enabled for gateway, replicas, and dashboard in Docker Compose.
 - Core RAFT timing is configured at heartbeat `150ms`, election timeout `500–800ms`.
 - Heartbeat log emission is intentionally throttled (default `HEARTBEAT_LOG_INTERVAL_MS=4000`) to keep logs event-focused while preserving protocol timing.
 - For a production-grade version, expected additions include durable storage and centralized observability/metrics.
+
+---
+
+## 12) Future work
+
+### 12.1 Stronger consistency guarantees
+
+Current state:
+- Best-effort writes with occasional drops.
+
+Planned improvements:
+- Implement strict commit acknowledgment.
+- Add retries and idempotency using stroke IDs.
+
+Expected outcome:
+- Moves the system from "usually consistent" to "provably consistent."
+
+### 12.2 Full Raft implementation
+
+Current state:
+- Mini-Raft (simplified).
+
+Missing pieces:
+- `nextIndex` / `matchIndex` tracking.
+- Log compaction.
+- Snapshotting.
+- Proper leader lease behavior.
+
+Expected outcome:
+- Evolves the implementation from demo Raft to a closer to production-grade Raft.
+
+### 12.3 Persistent storage
+
+Current state:
+- All state is held in memory (RAM).
+
+Planned improvements:
+- Store logs on disk (SQLite/files/LevelDB).
+- Recover node state after restart.
+
+Expected outcome:
+- Node restarts do not cause data loss.
+
+### 12.4 Improved gateway reliability
+
+Current state:
+- Leader discovery works but can lag.
+- Writes may fail during leader transitions.
+
+Planned improvements:
+- Smarter leader caching.
+- Exponential backoff retries.
+- Multi-node probing.
+
+Expected outcome:
+- Faster and more stable write routing.
+
+### 12.5 Request prioritization and scheduling
+
+Current state:
+- Sync, heartbeats, and writes compete equally.
+
+Planned improvements:
+- Prioritize heartbeat/vote traffic as highest priority.
+- Keep writes as high priority.
+- Run sync traffic at lower priority.
+
+Expected outcome:
+- Reduces starvation and blocking behavior.
+
+### 12.6 Advanced observability
+
+Current state:
+- Live dashboard is available.
+
+Planned improvements:
+- Add metrics for commit latency, election frequency, and replication lag.
+- Add historical log views.
+- Add failure visualization.
+
+Expected outcome:
+- Strengthens the project as both a teaching tool and a system monitor.
+
+### 12.7 Authentication and access control
+
+Current state:
+- Open environment with no access controls.
+
+Planned improvements:
+- User authentication.
+- Session-based drawing.
+- Role-based access control.
+
+Expected outcome:
+- Prevents unauthorized usage and improves accountability.
+
+### 12.8 Real deployment architecture
+
+Current state:
+- Single EC2/local cluster style deployment.
+
+Planned improvements:
+- Multi-region deployment.
+- Container orchestration with Kubernetes.
+- Auto-scaling replicas.
+
+Expected outcome:
+- Moves the system toward cloud-native operation.
+
+### 12.9 Conflict-free replication (CRDT alternative)
+
+Current state:
+- Strong consistency through Raft.
+
+Planned improvements:
+- Explore CRDT-based drawing synchronization.
+
+Expected outcome:
+- Offers eventual consistency with no leader requirement.
+
+### 12.10 Performance optimization
+
+Planned improvements:
+- Batch strokes.
+- Add compression.
+- Reduce network chatter.
+
+Expected outcome:
+- Improves latency and scalability.
+
+### 12.11 Enhanced frontend features
+
+Planned improvements:
+- Layers.
+- Collaborative cursors.
+- User presence indicators.
+- Version history/time travel.
+
+### 12.12 Fault injection testing
+
+Current state:
+- Manual chaos testing (for example, `docker stop`).
+
+Planned improvements:
+- Simulate network delays.
+- Simulate packet loss.
+- Simulate node crashes.
+
+Expected outcome:
+- Establishes lightweight chaos engineering coverage.
