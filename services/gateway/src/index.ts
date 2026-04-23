@@ -1,5 +1,4 @@
 import express from "express";
-import axios from "axios";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import {
@@ -52,11 +51,22 @@ async function forwardStroke(ws: WebSocket, localId: string, message: StrokeIngr
 
   const tryPost = async (leaderId: string) => {
     const leaderUrl = replicaMap[leaderId];
-    return axios.post(`${leaderUrl}/stroke`, message, { timeout: 800 });
+    const res = await fetch(`${leaderUrl}/stroke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(message),
+      signal: AbortSignal.timeout(800),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err: any = new Error(`HTTP ${res.status}`);
+      err.responseData = body;
+      throw err;
+    }
+    return res.json();
   };
 
-  const handleCommitted = (response: any, leaderId: string) => {
-    const data = response.data;
+  const handleCommitted = (data: any, leaderId: string) => {
     if (data?.committed && typeof data.logIndex === "number") {
       if (!committedEntries.some((e) => e.index === data.logIndex)) {
         const entry: LogEntry = { index: data.logIndex, term: 0, stroke: message.stroke };
@@ -80,8 +90,10 @@ async function forwardStroke(ws: WebSocket, localId: string, message: StrokeIngr
       .filter(([id]) => id !== skipId)
       .map(async ([id, url]) => {
         try {
-          const res = await axios.get(`${url}/status`, { timeout: 500 });
-          if (res.data?.state === "leader") {
+          const res = await fetch(`${url}/status`, { signal: AbortSignal.timeout(500) });
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data?.state === "leader") {
             return id;
           }
         } catch {
@@ -103,7 +115,7 @@ async function forwardStroke(ws: WebSocket, localId: string, message: StrokeIngr
       handleCommitted(response, attemptLeaderId);
       return;
     } catch (error: any) {
-      const hint = error.response?.data?.leaderHint;
+      const hint = error.responseData?.leaderHint;
       if (hint && replicaMap[hint]) {
         logger.log("NODE_UNREACHABLE", `Leader hint received -> ${hint}`);
         try {

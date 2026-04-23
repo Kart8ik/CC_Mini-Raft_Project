@@ -1,5 +1,4 @@
 import express from "express";
-import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { LogEvent, ReplicaStatus } from "@mini-raft/shared";
@@ -24,12 +23,23 @@ const replicaUrls = (process.env.REPLICA_URLS || "")
   .map((value) => value.trim())
   .filter(Boolean);
 
-const publicDirCandidates = [
-  path.resolve(process.cwd(), "public"),
-  path.resolve(process.cwd(), "dashboard/public"),
-  path.resolve(__dirname, "../public"),
-];
-const publicDir = publicDirCandidates.find((candidate) => fs.existsSync(path.join(candidate, "index.html"))) || publicDirCandidates[0];
+function resolveDir(candidates: string[], marker?: string): string {
+  if (marker) {
+    const found = candidates.find((c) => fs.existsSync(path.join(c, marker)));
+    if (found) return found;
+  }
+  return candidates.find((c) => fs.existsSync(c)) || candidates[0];
+}
+
+const publicDir = resolveDir(
+  [path.resolve(process.cwd(), "public"), path.resolve(process.cwd(), "dashboard/public"), path.resolve(__dirname, "../public")],
+  "index.html",
+);
+
+const clientDir = resolveDir(
+  [path.resolve(process.cwd(), "dist/client"), path.resolve(process.cwd(), "dashboard/dist/client"), path.resolve(__dirname, "../dist/client")],
+  "board.html",
+);
 
 const seenEventKeys = new Set<string>();
 const seenEventQueue: string[] = [];
@@ -63,11 +73,23 @@ function eventKey(event: LogEvent): string {
   return `${event.timestamp}|${event.replicaId}|${event.event}`;
 }
 
+const REPLICA_STATUS_TIMEOUT_MS = 600;
+
 async function fetchReplicaStatus(url: string): Promise<NodeStatus> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REPLICA_STATUS_TIMEOUT_MS);
   try {
-    const response = await axios.get<ReplicaStatus>(`${url}/status`, { timeout: 600 });
+    const response = await fetch(`${url}/status`, { signal: controller.signal });
+    if (!response.ok) {
+      return {
+        replicaId: parseReplicaId(url),
+        reachable: false,
+        url,
+      };
+    }
+    const data = (await response.json()) as ReplicaStatus;
     return {
-      ...response.data,
+      ...data,
       reachable: true,
       url,
     };
@@ -77,6 +99,8 @@ async function fetchReplicaStatus(url: string): Promise<NodeStatus> {
       reachable: false,
       url,
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -85,6 +109,7 @@ async function fetchAllStatuses(): Promise<NodeStatus[]> {
 }
 
 app.use(express.static(publicDir));
+app.use(express.static(clientDir));
 
 app.get("/", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));

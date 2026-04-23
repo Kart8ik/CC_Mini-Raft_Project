@@ -1,0 +1,484 @@
+/* Windows 98 chrome — no border-radius, no shadows, no gradients on UI */
+
+:root {
+  --win-bevel-light: #ffffff;
+  --win-bevel-mid:rgb(90, 90, 90);
+  --win-bevel-face:rgb(197, 196, 196);
+  --win-raised: var(--win-bevel-light) var(--win-bevel-mid) var(--win-bevel-mid) var(--win-bevel-light);
+  --win-sunken: var(--win-bevel-mid) var(--win-bevel-light) var(--win-bevel-light) var(--win-bevel-mid);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.win-raised {
+  border: 2px solid;
+  border-color: var(--win-raised);
+  background: var(--win-bevel-face);
+}
+
+.win-pressed {
+  border: 2px solid;
+  border-color: var(--win-sunken);
+  background: var(--win-bevel-face);
+}
+
+.win-sunken {
+  border: 2px solid;
+  border-color: var(--win-sunken);
+  background: #ffffff;
+}
+
+.win-menu-dropdown {
+  border: 2px solid;
+  border-color: var(--win-raised);
+  background: var(--win-bevel-face);
+  padding: 2px 0;
+  min-width: 140px;
+  list-style: none;
+  margin: 0;
+}
+
+.win-menu-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 20px 4px 8px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  color: #000000;
+}
+
+.win-menu-dropdown button:hover:not(:disabled),
+.win-menu-dropdown button:focus-visible:not(:disabled) {
+  background: #000080;
+  color: #ffffff;
+}
+
+.win-menu-dropdown button:disabled {
+  color: var(--win-bevel-mid);
+  cursor: default;
+}
+
+.board-menu-dropdown-panel {
+  position: absolute;
+  top: 140%;
+  left: 0;
+  z-index: 400;
+}
+
+.board-app {
+  margin: 0;
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: Tahoma, "Microsoft Sans Serif", Arial, sans-serif;
+  font-size: 12px;
+  color: #000000;
+  background: var(--win-bevel-face);
+}
+
+.board-menu-bar {
+  position: relative;
+  z-index: 200;
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 2px 4px;
+  margin-top: 2px;
+  border-bottom: 2px solid;
+  border-color: var(--win-bevel-light) var(--win-bevel-face) var(--win-bevel-face) var(--win-bevel-light);
+  background: var(--win-bevel-face);
+  user-select: none;
+}
+
+.board-menu-item-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.board-menu-label {
+  padding: 4px 6px;
+  cursor: default;
+  border: 2px solid transparent;
+}
+
+.board-menu-label:hover,
+.board-menu-label:focus-visible {
+  background: var(--win-bevel-face);
+  border: 2px solid;
+  border-color: var(--win-raised);
+  z-index: 1;
+}
+
+.board-menu-label:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -1px;
+}
+
+.board-menu-title {
+  margin-left: auto;
+  margin-right: 16px;
+}
+
+.board-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  border-bottom: 2px solid;
+  border-color: var(--win-bevel-mid) var(--win-bevel-face) var(--win-bevel-face) var(--win-bevel-mid);
+}
+
+.board-tool-column {
+  flex-shrink: 0;
+  width: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  margin-left: 4px; 
+  gap: 4px;
+  background: var(--win-bevel-face);
+}
+
+.board-tool-grid {
+  display: grid;
+  grid-template-columns: 27px 27px;
+  gap: 1px;
+}
+
+.board-tool-btn {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 2px solid;
+  border-color: var(--win-raised);
+  background: var(--win-bevel-face);
+}
+
+.board-tool-btn:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -3px;
+}
+
+.board-tool-btn img {
+  width: 24px;
+  height: 24px;
+  image-rendering: none;
+  pointer-events: none;
+}
+
+.board-tool-btn.board-tool-active {
+  border-color: var(--win-sunken);
+}
+
+.board-tool-secondary {
+  width: 48px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.board-canvas-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+  background: var(--win-bevel-face);
+  display: flex;
+}
+
+.board-canvas-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 2px;
+}
+
+#board {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+  background: #ffffff;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* Per-tool cursor overrides (data-tool on .board-app) */
+.board-app[data-tool="text"] #board { cursor: text; }
+.board-app[data-tool="eyedropper"] #board { cursor: crosshair; }
+.board-app[data-tool="magnifier"] #board { cursor: zoom-in; }
+.board-app[data-tool="fill"] #board { cursor: crosshair; }
+.board-app[data-tool="eraser"] #board { cursor: cell; }
+
+/* Text overlay positioned inside the canvas-inner wrapper */
+.board-canvas-inner {
+  position: relative;
+}
+
+.board-text-overlay {
+  position: absolute;
+  background: transparent;
+  border: 1px dashed #000080;
+  outline: none;
+  font-family: "MS Sans Serif", Tahoma, "Segoe UI", sans-serif;
+  resize: none;
+  overflow: hidden;
+  min-width: 40px;
+  min-height: 1.4em;
+  padding: 0 2px;
+  z-index: 10;
+}
+
+.board-bottom-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px;
+  background: var(--win-bevel-face);
+  border-bottom: 2px solid;
+  border-color: var(--win-bevel-light) var(--win-bevel-face) var(--win-bevel-face) var(--win-bevel-light);
+}
+
+.board-palette-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-color-preview {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.board-color-preview-bg {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #000000;
+  background: #ffffff;
+}
+
+.board-color-preview-fg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #000000;
+}
+
+.board-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(14, 16px);
+  grid-template-rows: repeat(2, 16px);
+  gap: 1px;
+}
+
+.board-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid;
+  border-color: var(--win-sunken);
+  cursor: pointer;
+}
+
+.board-swatch:focus-visible {
+  outline: 1px dotted #000000;
+}
+
+.board-swatch.board-swatch-selected {
+  border: 2px solid #000000;
+}
+
+.board-size-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+}
+
+.board-size-group label {
+  margin: 0;
+  font-size: 11px;
+}
+
+.board-size-group #sizeValue {
+  min-width: 20px;
+  text-align: right;
+  font-size: 11px;
+}
+
+/* Win98-style range slider */
+#sizePicker {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 20px;
+  background: transparent;
+  vertical-align: middle;
+  margin: 0;
+}
+
+#sizePicker:focus {
+  outline: none;
+}
+
+/* Track */
+#sizePicker::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--win-bevel-face);
+  border: 2px solid;
+  border-color: var(--win-sunken);
+}
+
+#sizePicker::-moz-range-track {
+  height: 4px;
+  background: var(--win-bevel-face);
+  border: 2px solid;
+  border-color: var(--win-bevel-mid) var(--win-bevel-light) var(--win-bevel-light) var(--win-bevel-mid);
+}
+
+/* Thumb */
+#sizePicker::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 18px;
+  margin-top: -9px;
+  background: var(--win-bevel-face);
+  border: 2px solid;
+  border-color: var(--win-raised);
+  cursor: pointer;
+}
+
+#sizePicker::-moz-range-thumb {
+  width: 10px;
+  height: 18px;
+  background: var(--win-bevel-face);
+  border: 2px solid;
+  border-color: var(--win-bevel-light) var(--win-bevel-mid) var(--win-bevel-mid) var(--win-bevel-light);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+#sizePicker:active::-webkit-slider-thumb {
+  border-color: var(--win-sunken);
+}
+
+#sizePicker:active::-moz-range-thumb {
+  border-color: var(--win-bevel-mid) var(--win-bevel-light) var(--win-bevel-light) var(--win-bevel-mid);
+}
+
+.board-status-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 22px;
+  background: var(--win-bevel-face);
+  border-top: 2px solid;
+  border-color: var(--win-bevel-light) var(--win-bevel-face) var(--win-bevel-face) var(--win-bevel-light);
+  font-size: 12px;
+}
+
+.board-status-seg {
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  border-right: 2px solid;
+  border-color: var(--win-sunken);
+}
+
+.board-status-seg-right {
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  border-left: 2px solid;
+  border-color: var(--win-sunken);
+  margin-left: auto;
+}
+
+.board-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.board-modal {
+  border: 2px solid;
+  border-color: var(--win-raised);
+  background: var(--win-bevel-face);
+  max-width: 480px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 8px 12px;
+}
+
+.board-modal h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.board-modal p {
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.board-modal-actions {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.board-modal-actions button {
+  min-width: 75px;
+  padding: 4px 12px;
+  border: 2px solid;
+  border-color: var(--win-raised);
+  background: var(--win-bevel-face);
+  font: inherit;
+  cursor: pointer;
+}
+
+.board-modal-actions button:active {
+  border-color: var(--win-sunken);
+}

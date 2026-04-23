@@ -1,4 +1,3 @@
-import axios from "axios";
 import {
   AppendEntriesRequest,
   AppendEntriesResponse,
@@ -134,14 +133,37 @@ export class MiniRaftNode {
       this.becomeFollower(req.term, `Stepped down - higher term seen | Term: ${req.term}`);
     }
 
-    const alreadyVoted = this.votedFor && this.votedFor !== req.candidateId;
+    const myLastLogIndex = this.log.length;
+    const myLastLogTerm =
+      this.log.length === 0 ? 0 : this.log[this.log.length - 1].term;
+
+    const candidateUpToDate =
+      req.lastLogTerm > myLastLogTerm ||
+      (req.lastLogTerm === myLastLogTerm &&
+        req.lastLogIndex >= myLastLogIndex);
+
+    if (!candidateUpToDate) {
+      this.logger.log(
+        "VOTE_REJECTED",
+        `Rejected ${req.candidateId} - log not up-to-date`
+      );
+      return { term: this.currentTerm, voteGranted: false };
+    }
+
+    const alreadyVoted =
+      this.votedFor && this.votedFor !== req.candidateId;
+
     if (alreadyVoted) {
       return { term: this.currentTerm, voteGranted: false };
     }
 
     this.votedFor = req.candidateId;
-    this.logger.log("VOTE_SENT", `Voted for ${req.candidateId} | Term: ${this.currentTerm}`);
+    this.logger.log(
+      "VOTE_SENT",
+      `Voted for ${req.candidateId} | Term: ${this.currentTerm}`
+    );
     this.resetElectionTimer();
+
     return { term: this.currentTerm, voteGranted: true };
   }
 
@@ -212,12 +234,14 @@ export class MiniRaftNode {
   }
 
   onSyncLog(fromIndex: number, entries: LogEntry[]): { success: boolean; newLogLength: number } {
-    this.logger.log("SYNC_START", `Sync requested from index ${fromIndex}`);
     const start = Math.max(0, fromIndex);
-    this.log = this.log.slice(0, start).concat(entries);
+    this.logger.log("SYNC_CHUNK_RECV", `Sync chunk received | From: ${start} | Size: ${entries.length}`);
+    for (let i = 0; i < entries.length; i++) {
+      this.log[start + i] = entries[i];
+    }
     this.commitIndex = this.log.length;
     this.resetElectionTimer();
-    this.logger.log("SYNC_COMPLETE", `Sync complete | Log length: ${this.log.length}`);
+    this.logger.log("SYNC_CHUNK_ACK", `Chunk applied | Log length: ${this.log.length}`);
     return { success: true, newLogLength: this.log.length };
   }
 
@@ -291,21 +315,26 @@ export class MiniRaftNode {
           lastLogIndex,
           lastLogTerm,
         };
-        const response = await axios.post<RequestVoteResponse>(`${url}/request-vote`, payload, {
-          timeout: 500,
+        const res = await fetch(`${url}/request-vote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(500),
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const response = await res.json() as RequestVoteResponse;
 
         if (this.state !== "candidate") {
           return false;
         }
 
-        if (response.data.term > this.currentTerm) {
-          this.becomeFollower(response.data.term, `Stepped down - higher term seen | Term: ${response.data.term}`);
+        if (response.term > this.currentTerm) {
+          this.becomeFollower(response.term, `Stepped down - higher term seen | Term: ${response.term}`);
           resolveElection();
           return false;
         }
 
-        if (response.data.voteGranted) {
+        if (response.voteGranted) {
           votes += 1;
           this.logger.log("VOTE_RECEIVED", `Vote received from ${peerId} | Term: ${this.currentTerm}`);
           if (votes >= quorum) {
@@ -396,10 +425,17 @@ export class MiniRaftNode {
         leaderCommit: this.commitIndex,
       };
 
-      axios.post(`${url}/heartbeat`, payload, { timeout: 500 })
-        .then((response) => {
-          if (response.data?.term > this.currentTerm) {
-            this.becomeFollower(response.data.term, `Stepped down - higher term seen | Term: ${response.data.term}`);
+      fetch(`${url}/heartbeat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(300),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          if (data?.term > this.currentTerm) {
+            this.becomeFollower(data.term, `Stepped down - higher term seen | Term: ${data.term}`);
           }
         })
         .catch(() => {
@@ -434,15 +470,20 @@ export class MiniRaftNode {
           leaderCommit: this.commitIndex,
         };
 
-        const response = await axios.post<AppendEntriesResponse>(`${url}/append-entries`, payload, {
-          timeout: 700,
+        const res = await fetch(`${url}/append-entries`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(600),
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const response = await res.json() as AppendEntriesResponse;
 
-        if (response.data.term > this.currentTerm) {
-          this.becomeFollower(response.data.term, `Stepped down - higher term seen | Term: ${response.data.term}`);
+        if (response.term > this.currentTerm) {
+          this.becomeFollower(response.term, `Stepped down - higher term seen | Term: ${response.term}`);
           resolveQuorum(successCount);
           return false;
-        } else if (response.data.success) {
+        } else if (response.success) {
           successCount += 1;
           this.logger.log("APPEND_ACK", `ACK received from ${peerId} | Index: ${entry.index}`);
           if (successCount >= quorum) {
@@ -450,7 +491,7 @@ export class MiniRaftNode {
           }
           return true;
         } else {
-          await this.syncFollower(peerId, url, response.data.logLength);
+          await this.syncFollower(peerId, url, response.logLength);
           return false;
         }
       } catch {
@@ -464,26 +505,57 @@ export class MiniRaftNode {
   }
 
   private async syncFollower(peerId: string, url: string, followerLength: number): Promise<void> {
-    const start = Math.max(0, followerLength);
-    const entries = this.log.slice(start);
-    if (entries.length === 0) {
+    const CHUNK_SIZE = 5;
+    const MAX_CHUNK_RETRIES = 3;
+    let nextIndex = Math.max(0, followerLength);
+
+    if (nextIndex >= this.log.length) {
       return;
     }
 
-    this.logger.log("SYNC_START", `${peerId} is lagging - syncing from index ${start}`);
+    this.logger.log("SYNC_START", `${peerId} is lagging - syncing from index ${nextIndex} to ${this.log.length}`);
 
-    try {
-      await axios.post(
-        `${url}/sync-log`,
-        {
-          fromIndex: start,
-          entries,
-        },
-        { timeout: 1000 },
-      );
-      this.logger.log("SYNC_COMPLETE", `Sync complete | Log length: ${start + entries.length}`);
-    } catch {
-      this.logPeerUnreachable(peerId);
+    while (nextIndex < this.log.length) {
+      if (!this.isLeader()) {
+        break;
+      }
+
+      const entries = this.log.slice(nextIndex, nextIndex + CHUNK_SIZE);
+      this.logger.log("SYNC_CHUNK", `Sending chunk to ${peerId} | From: ${nextIndex} | Size: ${entries.length}`);
+
+      let chunkSent = false;
+      for (let attempt = 1; attempt <= MAX_CHUNK_RETRIES; attempt++) {
+        try {
+          const res = await fetch(`${url}/sync-log`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fromIndex: nextIndex, entries }),
+            signal: AbortSignal.timeout(600),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          chunkSent = true;
+          break;
+        } catch {
+          if (attempt < MAX_CHUNK_RETRIES) {
+            this.logger.log("SYNC_RETRY", `Retry chunk for ${peerId} | From: ${nextIndex} | Attempt: ${attempt}`);
+            await new Promise<void>((resolve) => setTimeout(resolve, 100));
+          } else {
+            this.logPeerUnreachable(peerId);
+          }
+        }
+      }
+
+      if (!chunkSent) {
+        break;
+      }
+
+      nextIndex += entries.length;
+    }
+
+    if (nextIndex >= this.log.length) {
+      this.logger.log("SYNC_COMPLETE", `Sync complete for ${peerId} | Log length: ${this.log.length}`);
+    } else {
+      this.logger.log("SYNC_INCOMPLETE", `Sync incomplete for ${peerId} | Reached: ${nextIndex} / ${this.log.length}`);
     }
   }
 
@@ -514,9 +586,13 @@ export class MiniRaftNode {
   private async postGatewayWithRetries(path: string, payload: unknown): Promise<boolean> {
     for (let attempt = 1; attempt <= this.config.gatewayNotifyMaxAttempts; attempt += 1) {
       try {
-        await axios.post(`${this.config.gatewayUrl}${path}`, payload, {
-          timeout: this.config.gatewayNotifyTimeoutMs,
+        const res = await fetch(`${this.config.gatewayUrl}${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(this.config.gatewayNotifyTimeoutMs),
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return true;
       } catch {
         if (attempt === this.config.gatewayNotifyMaxAttempts) {

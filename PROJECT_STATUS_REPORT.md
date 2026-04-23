@@ -157,3 +157,152 @@ All critical failover issues identified in the previous report have been resolve
 - **Fully compliant with attached SAD/SRS:** Partial (in-memory durability + pending NFR benchmark validation)
 
 The project is in a strong functional state with all core distributed consensus, replication, and failover mechanisms working correctly under single-node failure scenarios.
+
+## 7) Future Work
+
+### 7.1 Stronger Consistency Guarantees
+
+Current state:
+- Best-effort writes with occasional drops.
+
+Planned improvements:
+- Implement strict commit acknowledgment.
+- Ensure clients see strokes only after quorum commit.
+- Add retries and idempotency using stroke IDs.
+
+Expected outcome:
+- Moves the system from "usually consistent" to "provably consistent."
+
+### 7.2 Full Raft Implementation
+
+Current state:
+- Mini-Raft (simplified).
+
+Missing pieces:
+- `nextIndex` / `matchIndex` tracking.
+- Log compaction.
+- Snapshotting.
+- Proper leader lease behavior.
+
+Expected outcome:
+- Evolves the implementation from demo Raft to production-grade Raft.
+
+### 7.3 Persistent Storage
+
+Current state:
+- All state is held in memory (RAM).
+
+Planned improvements:
+- Store logs on disk (SQLite/files/LevelDB).
+- Recover node state after restart.
+
+Expected outcome:
+- Node restarts do not cause data loss.
+
+### 7.4 Improved Gateway Reliability
+
+Current state:
+- Leader discovery works but can lag.
+- Writes may fail during leader transitions.
+
+Planned improvements:
+- Smarter leader caching.
+- Exponential backoff retries.
+- Multi-node probing.
+
+Expected outcome:
+- Faster and more stable write routing.
+
+### 7.5 Request Prioritization and Scheduling
+
+Current state:
+- Sync, heartbeats, and writes compete equally.
+
+Planned improvements:
+- Prioritize heartbeat/vote traffic as highest priority.
+- Keep writes as high priority.
+- Run sync traffic at lower priority.
+
+Expected outcome:
+- Reduces starvation and blocking behavior.
+
+### 7.6 Advanced Observability
+
+Current state:
+- Live dashboard is available.
+
+Planned improvements:
+- Add metrics for commit latency, election frequency, and replication lag.
+- Add historical log views.
+- Add failure visualization.
+
+Expected outcome:
+- Strengthens the project as both a teaching tool and a system monitor.
+
+### 7.7 Authentication and Access Control
+
+Current state:
+- Open environment with no access controls.
+
+Planned improvements:
+- User authentication.
+- Session-based drawing.
+- Role-based access control.
+
+Expected outcome:
+- Prevents unauthorized usage and improves accountability.
+
+### 7.8 Real Deployment Architecture
+
+Current state:
+- Single EC2/local cluster style deployment.
+
+Planned improvements:
+- Multi-region deployment.
+- Container orchestration with Kubernetes.
+- Auto-scaling replicas.
+
+Expected outcome:
+- Moves the system toward cloud-native operation.
+
+### 7.9 Conflict-Free Replication (CRDT Alternative)
+
+Current state:
+- Strong consistency through Raft.
+
+Planned improvements:
+- Explore CRDT-based drawing synchronization.
+
+Expected outcome:
+- Offers eventual consistency with no leader requirement.
+
+### 7.10 Performance Optimization
+
+Planned improvements:
+- Batch strokes.
+- Add compression.
+- Reduce network chatter.
+
+Expected outcome:
+- Improves latency and scalability.
+
+### 7.11 Enhanced Frontend Features
+
+Planned improvements:
+- Layers.
+- Collaborative cursors.
+- User presence indicators.
+- Version history/time travel.
+
+### 7.12 Fault Injection Testing
+
+Current state:
+- Manual chaos testing (for example, `docker stop`).
+
+Planned improvements:
+- Simulate network delays.
+- Simulate packet loss.
+- Simulate node crashes.
+
+Expected outcome:
+- Establishes lightweight chaos engineering coverage.
