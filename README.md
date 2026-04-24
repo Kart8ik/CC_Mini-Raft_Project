@@ -1,6 +1,6 @@
-# Distributed Real-Time Drawing Board (Mini-RAFT)
+# Distributed Real-Time MS Paint 98 (Mini-RAFT)
 
-A distributed collaborative drawing board built with:
+A distributed collaborative drawing board inspired by MS Paint 98 built with:
 
 - TypeScript + Node.js
 - Express (internal RPC-style HTTP endpoints)
@@ -13,6 +13,12 @@ This version also includes an observability layer:
 - Structured event logs across gateway/replicas
 - Replica `GET /status` endpoint with live state snapshot + recent events
 - Dashboard service with node cards and live event feed
+
+---
+
+![MS paint Screen](image1.png)
+
+![System Dashboard](image2.png)
 
 ---
 
